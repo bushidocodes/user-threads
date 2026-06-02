@@ -99,29 +99,31 @@ and child threads.
 
 ## Building
 
-Requires MinGW GCC on Windows.
+Requires CMake ≥ 3.14 and a C11 compiler (MinGW GCC or MSVC).
+Unity is vendored under `unity/` — no internet access needed at build time.
 
 ```
-make        # builds gwthd_lvl0 … gwthd_lvl7
-make run    # builds and runs all levels
-make clean
+cmake -B build -G Ninja -DCMAKE_C_COMPILER=gcc   # or "MinGW Makefiles", or omit -G for MSVC
+cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
 ## Tests
 
-Each level tests an additional capability, mirroring the original assignment:
+31 unit tests organised by feature, implemented in `test_gwthd.c` using the
+[Unity](https://github.com/ThrowTheSwitch/Unity) framework (v2.5.2, vendored).
 
-| Level | Tests |
+| Group | Tests |
 |-------|-------|
-| 0 | Compiles |
-| 1 | `gwthd_id` returns a positive id |
-| 2 | `gwthd_create` + `gwthd_join` round-trip |
-| 3 | Argument passing through `gwthd_create` |
-| 4 | Threads share the heap (`malloc` in a thread is visible to the parent) |
-| 5 | `gwthd_join` blocks until the child fully completes |
-| 6 | Error handling: threads can't call `gwthd_create`/`gwthd_join`; the main process calling `gwthd_exit` is a no-op |
-| 7 | Stack cleanup: 200 sequential create/join cycles complete without handle exhaustion, proving `DeleteFiber` is called on every join |
-| 8 | Cooperative yield: two threads each take 5 steps calling `gwthd_yield` between each, producing interleaved output `ABABABABAB` |
+| `gwthd_id` | main returns 1, stable across calls, child positive, child ≠ main, N children all unique |
+| `gwthd_create` | returns 0, sets childid, null arg, sequential reuse, parallel batch, fails from thread |
+| `gwthd_exit` / `gwthd_join` | returns 0, thread ran, invalid id → -1, from thread → -1, blocks until done, immediate return if already exited |
+| Argument passing | `int`, struct pointer, `NULL` |
+| Shared heap | allocation visible to parent, N threads produce N distinct pointers |
+| Synchronization | all threads run, reverse join order |
+| Error handling | `gwthd_exit` from main is harmless |
+| `gwthd_yield` | no crash from main, no crash from thread, two threads interleave, all steps complete |
+| Resource cleanup | 200 sequential create/join cycles without handle exhaustion |
 
 ## Architecture
 

@@ -172,7 +172,7 @@ static inline int gwthd_join(gwthd_t child) {
     _gw_init();
     if (_gw_current != 0) return -1; // threads cannot join
     int cidx = _gw_find_idx(child);
-    if (cidx < 0) return -1;
+    if (cidx <= 0) return -1; // 0 = main; joining main would deadlock
     if (_gw_threads[cidx].state != GW_ZOMBIE) {
         _gw_threads[0].state       = GW_WAITING;
         _gw_threads[0].waiting_for = child;
