@@ -1,6 +1,6 @@
 # user-threads
 
-A userspace port of the `gwthd` threading library from [hw4-19-threading](https://github.com/bushidocodes/hw4-19-threading-bushidocodes), which implemented 1:1 POSIX-style threads inside the xv6 teaching kernel.
+A userspace port of the `gwthd` threading library, which originally implemented 1:1 POSIX-style threads inside the xv6 teaching kernel.
 
 This repo keeps the same API and test suite but replaces the kernel syscalls with **Windows Fibers**, giving an N:1 cooperative green-thread scheduler that runs entirely in userspace.
 
