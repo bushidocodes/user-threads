@@ -99,14 +99,33 @@ and child threads.
 
 ## Building
 
-Requires CMake ≥ 3.14 and a C11 compiler (MinGW GCC or MSVC).
-Unity is vendored under `unity/` — no internet access needed at build time.
+Requires CMake ≥ 3.14 and a C11 compiler. Unity is vendored under `unity/` —
+no internet access needed at build time.
+
+### MSVC (auto-detected on Windows)
 
 ```
-cmake -B build -G Ninja -DCMAKE_C_COMPILER=gcc   # or "MinGW Makefiles", or omit -G for MSVC
+cmake -B build
+cmake --build build
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+`-C Debug` is required because Visual Studio is a multi-config generator and
+CTest needs to know which configuration to run.
+
+### MinGW / GCC + Ninja
+
+Pass the paths to your GCC and Ninja executables explicitly:
+
+```
+cmake -B build -G Ninja -DCMAKE_C_COMPILER=<path\to\gcc.exe> -DCMAKE_MAKE_PROGRAM=<path\to\ninja.exe>
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+Replace the `<...>` placeholders with the actual paths on your machine.
+If `gcc` and `ninja` are already on your `PATH`, the flags after `-G Ninja`
+can be omitted.
 
 ## Tests
 
