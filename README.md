@@ -9,15 +9,93 @@ This repo keeps the same API and test suite but replaces the kernel syscalls wit
 ```c
 typedef int     gwthd_t;
 typedef void *(*gwthd_fn_t)(void *);
-
-int     gwthd_create(gwthd_t *childid, gwthd_fn_t fn, void *arg);
-void    gwthd_exit(void);
-int     gwthd_join(gwthd_t child);
-gwthd_t gwthd_id(void);
-void    gwthd_yield(void);   // cooperative yield — give up the CPU, stay runnable
 ```
 
-`gwthd_create/exit/join/id` are identical to the xv6 version (a simplified subset of pthreads). `gwthd_yield` is new: it returns the current thread to the run queue and lets the scheduler pick the next one. Without it, a running thread holds the CPU until it calls `gwthd_exit`.
+---
+
+### `gwthd_create`
+
+```c
+int gwthd_create(gwthd_t *childid, gwthd_fn_t fn, void *arg);
+```
+
+Creates a new green thread that executes `fn(arg)`. The thread is added to the
+run queue immediately but does not start running until the caller yields control
+(via `gwthd_join` or `gwthd_yield`). Only the main context may create threads;
+calling this from inside a thread returns `-1`.
+
+| Parameter | Description |
+|-----------|-------------|
+| `childid` | Output — set to the new thread's `gwthd_t` id on success |
+| `fn` | Function the thread will execute. Should call `gwthd_exit()` rather than returning |
+| `arg` | Opaque pointer forwarded to `fn` as its sole argument |
+
+**Returns** `0` on success; `-1` if called from a thread, if the thread table is
+full (`MAX_THREADS = 64`), or if fiber creation fails.
+
+---
+
+### `gwthd_exit`
+
+```c
+void gwthd_exit(void);
+```
+
+Terminates the calling thread. Marks the thread as ZOMBIE, wakes any parent
+blocked in `gwthd_join` waiting on this thread, then yields to the scheduler.
+The fiber's resources are freed by the parent's subsequent `gwthd_join` — not
+here — because a fiber cannot delete its own stack while still running on it.
+
+If called from the main context (not a thread), logs a diagnostic to `stderr`
+and returns harmlessly; the process is not affected.
+
+---
+
+### `gwthd_join`
+
+```c
+int gwthd_join(gwthd_t child);
+```
+
+Blocks until the child thread has exited, then frees its resources. If the
+child has already called `gwthd_exit()` by the time `join` is called, this
+returns immediately without yielding. Otherwise the caller is suspended and the
+scheduler runs other threads until the child finishes.
+
+| Parameter | Description |
+|-----------|-------------|
+| `child` | The `gwthd_t` id returned by `gwthd_create` for the target thread |
+
+**Returns** `0` on success; `-1` if called from a thread or if `child` is not a
+valid thread id.
+
+---
+
+### `gwthd_id`
+
+```c
+gwthd_t gwthd_id(void);
+```
+
+Returns the unique id of the calling thread. Safe to call from both the main
+context and child threads. The main context always returns `1`; child threads
+return the id assigned by `gwthd_create`.
+
+**Returns** The `gwthd_t` id of the currently executing thread.
+
+---
+
+### `gwthd_yield`
+
+```c
+void gwthd_yield(void);
+```
+
+Voluntarily relinquishes the CPU without exiting. Moves the calling thread back
+to runnable state and switches to the scheduler. The round-robin scheduler
+resumes this thread only after every other currently runnable thread has had at
+least one turn, preventing starvation. Safe to call from both the main context
+and child threads.
 
 ## Building
 
