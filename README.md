@@ -14,9 +14,10 @@ int     gwthd_create(gwthd_t *childid, gwthd_fn_t fn, void *arg);
 void    gwthd_exit(void);
 int     gwthd_join(gwthd_t child);
 gwthd_t gwthd_id(void);
+void    gwthd_yield(void);   // cooperative yield — give up the CPU, stay runnable
 ```
 
-Identical to the xv6 version — and a simplified subset of pthreads.
+`gwthd_create/exit/join/id` are identical to the xv6 version (a simplified subset of pthreads). `gwthd_yield` is new: it returns the current thread to the run queue and lets the scheduler pick the next one. Without it, a running thread holds the CPU until it calls `gwthd_exit`.
 
 ## Building
 
@@ -42,6 +43,7 @@ Each level tests an additional capability, mirroring the original assignment:
 | 5 | `gwthd_join` blocks until the child fully completes |
 | 6 | Error handling: threads can't call `gwthd_create`/`gwthd_join`; the main process calling `gwthd_exit` is a no-op |
 | 7 | Stack cleanup: 200 sequential create/join cycles complete without handle exhaustion, proving `DeleteFiber` is called on every join |
+| 8 | Cooperative yield: two threads each take 5 steps calling `gwthd_yield` between each, producing interleaved output `ABABABABAB` |
 
 ## Architecture
 

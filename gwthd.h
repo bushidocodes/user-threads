@@ -31,7 +31,8 @@ static LPVOID      _gw_sched_fiber = NULL;
 static int         _gw_initialized = 0;
 
 static void WINAPI _gw_scheduler_fiber(LPVOID param);
-static void gwthd_exit(void);
+static inline void gwthd_exit(void);
+static inline void gwthd_yield(void);
 
 static void WINAPI _gw_thread_entry(LPVOID param) {
     (void)param;
@@ -58,31 +59,32 @@ static int _gw_find_idx(gwthd_t id) {
     return -1;
 }
 
-// Round-robin scheduler: runs on its own fiber, picks the next RUNNABLE
-// thread after each yield, returns to it until nothing is left.
+// Round-robin scheduler: after each context switch, resumes scanning from
+// the slot *after* the thread that just ran so every runnable thread gets a
+// turn before the same one is selected twice.
 static void WINAPI _gw_scheduler_fiber(LPVOID param) {
     (void)param;
     for (;;) {
         int found = 0;
-        for (int i = 0; i < _gw_count; i++) {
+        for (int j = 1; j <= _gw_count; j++) {
+            int i = (_gw_current + j) % _gw_count;
             if (_gw_threads[i].state == GW_RUNNABLE) {
                 _gw_current = i;
                 _gw_threads[i].state = GW_RUNNING;
                 SwitchToFiber(_gw_threads[i].fiber);
                 // Resumes here after any thread yields back to the scheduler.
                 found = 1;
-                break; // restart scan so we pick up newly-runnable threads
+                break; // restart scan from new _gw_current
             }
         }
         if (!found) {
-            // Nothing runnable — should only happen if all children are done
-            // and main was already made RUNNABLE by the last gwthd_exit call.
+            // Nothing runnable — all children done, main already RUNNABLE.
             break;
         }
     }
 }
 
-int gwthd_create(gwthd_t *childid, gwthd_fn_t fn, void *arg) {
+static inline int gwthd_create(gwthd_t *childid, gwthd_fn_t fn, void *arg) {
     _gw_init();
     if (_gw_current != 0) return -1; // threads cannot create threads
     // Reuse a ZOMBIE slot whose fiber was already deleted by gwthd_join.
@@ -109,7 +111,7 @@ int gwthd_create(gwthd_t *childid, gwthd_fn_t fn, void *arg) {
     return 0;
 }
 
-void gwthd_exit(void) {
+static inline void gwthd_exit(void) {
     _gw_init();
     if (_gw_current == 0) {
         // The main process called gwthd_exit — harmless, just log and return.
@@ -127,7 +129,7 @@ void gwthd_exit(void) {
     SwitchToFiber(_gw_sched_fiber);
 }
 
-int gwthd_join(gwthd_t child) {
+static inline int gwthd_join(gwthd_t child) {
     _gw_init();
     if (_gw_current != 0) return -1; // threads cannot join
     int cidx = _gw_find_idx(child);
@@ -147,7 +149,15 @@ int gwthd_join(gwthd_t child) {
     return 0;
 }
 
-gwthd_t gwthd_id(void) {
+static inline gwthd_t gwthd_id(void) {
     _gw_init();
     return _gw_threads[_gw_current].id;
+}
+
+static inline void gwthd_yield(void) {
+    _gw_init();
+    gw_thread_t *t = &_gw_threads[_gw_current];
+    t->state = GW_RUNNABLE;          // stay in the queue; give up the CPU
+    SwitchToFiber(_gw_sched_fiber);  // resumes here when the scheduler picks us again
+    t->state = GW_RUNNING;
 }
