@@ -64,8 +64,14 @@ static void WINAPI _gw_scheduler_fiber(LPVOID param) {
             }
         }
         if (!found) {
-            // Nothing runnable — all children done, main already RUNNABLE.
-            break;
+            // Nothing runnable — hand control back to main explicitly.
+            // Returning from a fiber entry-point is undefined behavior on
+            // Windows; always exit via SwitchToFiber.
+            _gw_current = 0;
+            _gw_threads[0].state = GW_RUNNING;
+            SwitchToFiber(_gw_threads[0].fiber);
+            // Resumes here if the scheduler fiber is switched to again
+            // (e.g. after main creates new threads and yields).
         }
     }
 }
