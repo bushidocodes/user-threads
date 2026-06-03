@@ -21,13 +21,22 @@ static void WINAPI _gw_thread_entry(LPVOID param) {
 
 static void _gw_init(void) {
     if (_gw_initialized) return;
-    _gw_initialized = 1;
+    // Initialize before touching any state so a failed init can be retried.
+    _gw_threads[0].fiber = ConvertThreadToFiber(NULL);
+    if (!_gw_threads[0].fiber) {
+        fprintf(stderr, "gwthd: ConvertThreadToFiber failed (%lu)\n", GetLastError());
+        abort();
+    }
+    _gw_sched_fiber = CreateFiber(4096 * 4, _gw_scheduler_fiber, NULL);
+    if (!_gw_sched_fiber) {
+        fprintf(stderr, "gwthd: CreateFiber failed (%lu)\n", GetLastError());
+        abort();
+    }
     _gw_threads[0].id    = 1;
     _gw_threads[0].state = GW_RUNNING;
-    _gw_threads[0].fiber = ConvertThreadToFiber(NULL);
     _gw_count   = 1;
     _gw_current = 0;
-    _gw_sched_fiber = CreateFiber(4096 * 4, _gw_scheduler_fiber, NULL);
+    _gw_initialized = 1; // set last so a failed init leaves the library retryable
 }
 
 static int _gw_find_idx(gwthd_t id) {
