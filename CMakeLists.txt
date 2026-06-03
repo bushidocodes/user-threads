@@ -13,6 +13,8 @@ endif()
 # Unity source is vendored under unity/
 add_executable(test_gwthd
     test_gwthd.c
+    helper_tu.c
+    gwthd.c
     unity/unity.c
 )
 

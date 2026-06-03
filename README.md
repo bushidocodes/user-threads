@@ -4,6 +4,18 @@ A userspace port of the `gwthd` threading library, which originally implemented 
 
 This repo keeps the same API and test suite but replaces the kernel syscalls with **Windows Fibers**, giving an N:1 cooperative green-thread scheduler that runs entirely in userspace.
 
+## Usage
+
+Include `gwthd.h` in any translation unit that uses the API, and compile `gwthd.c` into your binary exactly once:
+
+```c
+#include "gwthd.h"
+```
+
+```
+gcc -o myapp myapp.c gwthd.c
+```
+
 ## API
 
 ```c
