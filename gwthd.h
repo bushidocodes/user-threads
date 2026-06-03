@@ -26,7 +26,7 @@ typedef struct {
 static gw_thread_t _gw_threads[MAX_THREADS];
 static int         _gw_count       = 0;
 static int         _gw_current     = 0;
-static int         _gw_next_id     = 2; // 1 = main; children increment from 2
+static unsigned int _gw_next_id    = 2; // 1 = main; children increment from 2
 static LPVOID      _gw_sched_fiber = NULL;
 static int         _gw_initialized = 0;
 
@@ -115,7 +115,8 @@ static inline int gwthd_create(gwthd_t *childid, gwthd_fn_t fn, void *arg) {
         idx = _gw_count++;
     }
     gw_thread_t *t = &_gw_threads[idx];
-    t->id          = _gw_next_id++;
+    t->id          = (gwthd_t)_gw_next_id;
+    if (++_gw_next_id < 2) _gw_next_id = 2; // skip ids 0 and 1 after unsigned wrap
     t->state       = GW_RUNNABLE;
     t->fn          = fn;
     t->arg         = arg;
@@ -183,6 +184,8 @@ static inline int gwthd_join(gwthd_t child) {
         DeleteFiber(_gw_threads[cidx].fiber);
         _gw_threads[cidx].fiber = NULL;
     }
+    _gw_threads[cidx].id    = 0;
+    _gw_threads[cidx].state = GW_ZOMBIE;
     _gw_threads[0].state       = GW_RUNNING;
     _gw_threads[0].waiting_for = 0;
     return 0;
