@@ -2,6 +2,9 @@
 #include "unity.h"
 #include "gwthd.h"
 
+/* helper_tu.c — separate TU used by test_multi_tu_shared_scheduler_state */
+extern int helper_tu_create_thread(gwthd_t *tid, volatile int *flag);
+
 /* ─────────────────────────────────────────────────────────────────────
    Thread helper functions and shared globals.
    All globals are reset in setUp() before every test.
@@ -401,6 +404,24 @@ void test_yield_both_threads_complete_all_steps(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   multi-TU shared state
+   Regression guard for the static-globals bug: if scheduler state were
+   declared static in the header, each TU would get its own private copy
+   and a cross-TU join would return -1 (thread not found).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+void test_multi_tu_thread_created_in_helper_tu_joinable_here(void) {
+    volatile int flag = 0;
+    gwthd_t tid;
+    TEST_ASSERT_EQUAL_MESSAGE(0, helper_tu_create_thread(&tid, &flag),
+        "helper_tu_create_thread failed");
+    /* Cross-TU join: succeeds only if both TUs share the same _gw_threads */
+    TEST_ASSERT_EQUAL_MESSAGE(0, gwthd_join(tid),
+        "gwthd_join returned -1: scheduler state is not shared across TUs");
+    TEST_ASSERT_EQUAL(1, flag);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    resource cleanup
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -468,6 +489,9 @@ int main(void) {
     RUN_TEST(test_yield_from_thread_does_not_crash);
     RUN_TEST(test_yield_interleaves_two_threads);
     RUN_TEST(test_yield_both_threads_complete_all_steps);
+
+    /* multi-TU shared state */
+    RUN_TEST(test_multi_tu_thread_created_in_helper_tu_joinable_here);
 
     /* resource cleanup */
     RUN_TEST(test_200_sequential_create_join_cycles);
